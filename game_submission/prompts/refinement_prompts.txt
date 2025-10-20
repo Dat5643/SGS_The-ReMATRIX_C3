@@ -1,0 +1,8 @@
+# Refinement Prompts (Debug & Polish)
+
+- Profile hotspots; reduce GC churn; batch draw calls; memoize expensive paths.
+- Improve feel: juice (screenshake 2–6px, hitflash 80–120ms), SFX timing.
+- Balance: adjust enemy HP/DMG, spawn rates, player speed.
+- Accessibility: color contrast, key remapping, captions for SFX cues.
+- QA checklist: pause/resume, edge cases, off-screen behavior, resize tests.
+

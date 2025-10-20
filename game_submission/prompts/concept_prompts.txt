@@ -1,0 +1,8 @@
+# Concept Prompts (Brainstorm ý tưởng)
+
+- Propose 3–5 distinct game concepts around the theme: <theme>.
+- For each, outline core loop, unique hook, scope, and risks.
+- Compare options with pros/cons and a recommended pick for a 1–2 week build.
+- Suggest visual style, target platform, and input method.
+- Define success criteria (fun factor, session length, replayability).
+

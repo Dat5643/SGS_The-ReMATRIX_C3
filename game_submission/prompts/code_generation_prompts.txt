@@ -1,0 +1,10 @@
+# Code Generation Prompts (Game logic & UI)
+
+- Implement core loop: init -> update -> render at 60 FPS.
+- Entities: Player, Enemy, Projectile, Pickup with components (pos, vel, sprite).
+- Input: keyboard (WASD/Arrows), mouse (click/aim), mobile touch fallback.
+- Systems: collision (AABB), health/damage, score, waves/difficulty ramp.
+- Scene flow: menu -> gameplay -> results; restart from results.
+- Constraints: no external build step, vanilla JS + canvas; keep under 2MB.
+- Acceptance: runs in latest Chrome/Firefox; no console errors; 120+ FPS idle.
+

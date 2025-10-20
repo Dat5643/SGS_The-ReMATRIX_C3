@@ -1,0 +1,8 @@
+# Asset Generation Prompts (Visuals/Audio/Sprites)
+
+- Art direction: <style refs>, palette: <colors>, resolution: <WxH>, format: PNG.
+- Generate sprite sheets for: <character/enemy/object> with states: idle, move, hit.
+- UI pack: buttons (normal/hover/active), panels, icons (16/24/32px).
+- Backgrounds: parallax layers (near/mid/far), seamless tiling.
+- Audio: short SFX (click/jump/hit), loopable BGM (60–90s), format: WAV/OGG.
+

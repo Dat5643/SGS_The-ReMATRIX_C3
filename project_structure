@@ -1,0 +1,34 @@
+game_submission/
+│
+├── README.md                    
+│   └─ Mô tả tổng quan về dự án, cách chạy game, giới thiệu ngắn gọn về game.
+│
+├── project_report.pdf           
+│   └─ Báo cáo đầy đủ (giới thiệu game, lý do chọn chủ đề, tác động dự kiến, 
+│      công nghệ sử dụng (bao gồm AI và web frameworks), mô tả gameplay chi tiết,
+│      reflection - bài học rút ra từ dự án).
+│
+├── youtube_link.txt             
+│   └─ File text chứa link YouTube (demo gameplay, tối đa 7 phút, có voice-over).
+│
+├── prompts/                     
+│   ├── concept_prompts.txt              # Prompts để brainstorm ý tưởng game.
+│   ├── asset_generation_prompts.txt     # Prompts để tạo visuals, âm thanh, sprite.
+│   ├── code_generation_prompts.txt      # Prompts dùng để tạo game logic, UI.
+│   ├── refinement_prompts.txt           # Prompts dùng để debug và hoàn thiện.
+│   └── (Các file prompts khác nếu có)
+│
+├── game_app/                    
+│   ├── index.html                       # Trang chính để chạy game.
+│   ├── css/                             # CSS files.
+│   ├── js/                              # JavaScript files.
+│   ├── assets/                          # Game assets (images, sounds, v.v.).
+│   └── (Các file/folder liên quan khác)
+│
+└── screenshots/                 
+    ├── menu_screen.png                  
+    ├── play_screen1.png                 
+    ├── play_screen2.png                 
+    ├── play_screen3.png                 
+    └── results_screen.png               
+
