@@ -1,6 +1,6 @@
 (() => {
   const MAX_QUESTIONS = 10;
-  const BOSS_WIN_MIN_CORRECT = 7; // need >=7/10 correct to win a boss
+  const BOSS_WIN_MIN_CORRECT = 10; // must get 10/10 to clear a boss
   const app = document.getElementById("app");
 
   // Data set: real portraits from RandomUser vs AI faces from ThisPersonDoesNotExist
@@ -214,7 +214,7 @@
 
   // LocalStorage helpers: keep a history of play sessions
   const LS_KEY_HISTORY = "rof_play_history";
-  const LS_KEY_BOSS = "rof_boss_progress"; // { winAIboss: boolean }
+  const LS_KEY_BOSS = "rof_boss_progress"; // { AIboss?: boolean, smsboss?: boolean, videoboss?: boolean, webBoss?: boolean } (migrates old winAIboss)
   function loadHistory() {
     try {
       const raw = localStorage.getItem(LS_KEY_HISTORY);
@@ -292,11 +292,18 @@
   function loadBossProgress() {
     try {
       const raw = localStorage.getItem(LS_KEY_BOSS);
-      if (!raw) return { winAIboss: false };
-      const obj = JSON.parse(raw);
-      return { winAIboss: !!obj.winAIboss };
+      if (!raw) return { AIboss: false, smsboss: false, videoboss: false, webBoss: false };
+      const obj = JSON.parse(raw) || {};
+      // migrate legacy shape { winAIboss: boolean }
+      const migrated = {
+        AIboss: !!(obj.AIboss ?? obj.winAIboss ?? false),
+        smsboss: !!obj.smsboss,
+        videoboss: !!obj.videoboss,
+        webBoss: !!obj.webBoss,
+      };
+      return migrated;
     } catch (_) {
-      return { winAIboss: false };
+      return { AIboss: false, smsboss: false, videoboss: false, webBoss: false };
     }
   }
   function saveBossProgress(p) {
@@ -470,30 +477,34 @@
     render();
   }
 
-  // Start AI Boss: pick 10 image-only questions
-  async function startBossAI() {
-    const data = await loadData();
-    const imagePairs = data.pairs.filter(
-      (p) => p.left.media_type === "image" && p.right.media_type === "image"
+  function buildBossQuestionsForTypes(allowedTypes, data) {
+    // Filter pairs where both items' type are in allowedTypes
+    const pairs = data.pairs.filter((p) =>
+      allowedTypes.includes(p.left.type) && allowedTypes.includes(p.right.type)
     );
-    const imageSingles = data.items.filter(
-      (s) => s.item.media_type === "image"
-    );
-    const all = shuffle([...imagePairs, ...imageSingles]);
-    // Dedup by content
+    // Singles are items not in any pair; filter by item.type
+    const singles = data.items.filter((s) => allowedTypes.includes(s.item.type));
+    const all = shuffle([...pairs, ...singles]);
+    // Dedup and limit to MAX_QUESTIONS
     const seen = new Set();
     const unique = [];
     for (const q of all) {
-      const key =
-        q.type === "single"
-          ? `i:${q.item.id}`
-          : `p:${[q.left.id, q.right.id].sort((a, b) => a - b).join("-")}`;
+      const key = q.type === 'single'
+        ? `i:${q.item.id}`
+        : `p:${[q.left.id, q.right.id].sort((a,b)=>a-b).join('-')}`;
       if (seen.has(key)) continue;
       seen.add(key);
       unique.push(q);
       if (unique.length >= MAX_QUESTIONS) break;
     }
-    state.questions = unique.slice(0, MAX_QUESTIONS);
+    return unique;
+  }
+
+  // Start AI Boss using type-based filter
+  async function startBossAI() {
+    const data = await loadData();
+    const questions = buildBossQuestionsForTypes(['image'], data);
+    state.questions = questions.slice(0, MAX_QUESTIONS);
     state.index = 0;
     state.score = 0;
     state.answers = [];
@@ -503,8 +514,19 @@
     render();
   }
 
+  // Generic start function (future bosses TBD). For now only AIboss is playable.
+  function startBoss(id) {
+    if (id === "AIboss") return startBossAI();
+    // Others are coming soon; show info
+    openModal(
+      "Coming Soon",
+      `<p>This boss is coming soon. Defeat previous bosses to unlock it when available.</p>`
+    );
+  }
+
   function toMenu() {
-    state.screen = "menu";
+    // Route any legacy 'menu' navigation to the Boss menu by default
+    state.screen = "bossMenu";
     state.boss = null;
     render();
   }
@@ -525,13 +547,13 @@
       correct,
     });
 
-    // Boss victory check (only AI boss for now)
-    if (state.boss === "AIboss") {
+    // Boss victory check: must get 10/10
+    if (state.boss) {
       const win = correct >= BOSS_WIN_MIN_CORRECT;
       if (win) {
         const prog = loadBossProgress();
-        if (!prog.winAIboss) {
-          prog.winAIboss = true;
+        if (!prog[state.boss]) {
+          prog[state.boss] = true;
           saveBossProgress(prog);
         }
       }
@@ -547,6 +569,7 @@
     const item = q.item;
     const correctLabel = item.is_fake ? "fake" : "real";
     const correct = correctLabel === guess;
+    try { if (window.fx) { correct ? window.fx.correct() : window.fx.incorrect(); } } catch (_) {}
     if (correct) state.score += Math.floor(100 / MAX_QUESTIONS);
     state.answers.push({ kind: "single", id: item.id, guess, correct });
 
@@ -572,6 +595,7 @@
   function onGuessPair(choiceIndex) {
     const q = state.questions[state.index];
     const correct = choiceIndex === q.correctIndex;
+    try { if (window.fx) { correct ? window.fx.correct() : window.fx.incorrect(); } } catch (_) {}
     if (correct) state.score += Math.floor(100 / MAX_QUESTIONS);
     state.answers.push({ kind: "pair", id: q.id, choiceIndex, correct });
 
@@ -660,12 +684,7 @@
           <p>Decide if each image is a real capture or a fake. Learn quick cues to avoid scams.</p>
         </div>
         <div class="progress" aria-hidden="true"><div class="bar" style="width:0%"></div></div>
-        <div class="stack">
-          <button id="btn-play" class="btn btn-primary">Start</button>
-          <button id="btn-boss" class="btn btn-outline">Boss Mode</button>
-          <button id="btn-history" class="btn btn-outline">History</button>
-          <button id="btn-about" class="btn btn-outline">About</button>
-        </div>
+        <div class="stack"><button id="btn-boss" class="btn btn-primary">Boss Mode</button></div>
         <div class="pill" style="justify-self:center">Shortcuts: <span class="kbd">R</span> Real • <span class="kbd">F</span> Fake • <span class="kbd">1/2</span> Left/Right</div>
       </div>
       <footer class="card-footer">
@@ -675,30 +694,11 @@
     `;
     app.appendChild(card);
 
-    qs("#btn-play", card).addEventListener("click", startGame);
     qs("#btn-boss", card).addEventListener("click", () => {
       state.screen = "bossMenu";
       render();
     });
-    qs("#btn-history", card).addEventListener("click", showHistory);
-    qs("#btn-about", card).addEventListener("click", () => {
-      openModal(
-        "About",
-        `
-        <p>This quiz helps you practice spotting fake media and common red flags used in scams. Learn to identify artifacts, inconsistencies, and visual cues.</p>
-        <p>All data loads locally from CSV files bundled with this game — nothing is uploaded.</p>
-      `
-      );
-    });
-    qs("#btn-credits", card).addEventListener("click", () => {
-      openModal(
-        "Credits",
-        `
-        <p>Questions and media are sourced from CSV data in <code>assets/data/</code>. Replace them to customize your game.</p>
-        <p>Built as a lightweight, client-only web quiz for media literacy.</p>
-      `
-      );
-    });
+    // Hide other modes/options for the boss-first flow
     qs("#btn-landing", card).addEventListener("click", () => {
       state.screen = "landing";
       render();
@@ -709,35 +709,68 @@
     const prog = loadBossProgress();
     app.innerHTML = "";
     const card = el("section", "card");
+    // Determine unlock states (sequential)
+    const unlockedAI = true;
+    const unlockedSMS = !!prog.AIboss; // AI cleared unlocks SMS
+    const unlockedVideo = !!prog.smsboss; // SMS cleared unlocks Video
+    const unlockedWeb = !!prog.videoboss; // Video cleared unlocks Web
+    const clearedCount = (prog.AIboss?1:0) + (prog.smsboss?1:0) + (prog.videoboss?1:0) + (prog.webBoss?1:0);
+
     card.innerHTML = `
       <header class="card-header">
         <div class="brand"><span class="dot"></span> Boss Select</div>
-        <div class="pill">Defeat AI Boss to unlock more</div>
+        <div class="pill">Beat each boss (10/10) to unlock the next</div>
       </header>
-      <div class="card-body" style="display:grid; gap:12px;">
+      <div class="card-body" style="display:grid; gap:16px;">
         <div class="hero">
           <h1>Choose Your Boss</h1>
-          <p>Start with AI Scam Boss. Others are placeholders for later.</p>
+          <p>Other bosses are coming soon. Clear one to unlock the next.</p>
         </div>
-        <div class="stack">
-          <button id="btn-boss-ai" class="btn btn-primary">AI Scam Boss</button>
-          <button class="btn btn-outline" disabled>SMS Scam Boss (Locked)</button>
-          <button class="btn btn-outline" disabled>Video Scam Boss (Locked)</button>
-          <button class="btn btn-outline" disabled>Website Scam Boss (Locked)</button>
+        <div class="boss-grid">
+          <button class="boss-card ${unlockedAI ? '' : 'locked'}" id="boss-AIboss" aria-label="AI Scam Boss">
+            <img src="assets/boss/AIboss.webp" alt="AI Scam Boss"/>
+            <div class="boss-name">AI Scam Boss</div>
+          </button>
+          <button class="boss-card ${unlockedSMS ? 'soon' : 'locked'}" id="boss-smsboss" aria-label="SMS/Email Scam Boss" ${unlockedSMS ? '' : 'disabled'}>
+            <img src="assets/boss/smsboss.webp" alt="SMS Scam Boss"/>
+            <div class="boss-name">SMS Scam Boss</div>
+          </button>
+          <button class="boss-card ${unlockedVideo ? 'soon' : 'locked'}" id="boss-videoboss" aria-label="Video Scam Boss" ${unlockedVideo ? '' : 'disabled'}>
+            <img src="assets/boss/videoboss.webp" alt="Video Scam Boss"/>
+            <div class="boss-name">Video Scam Boss</div>
+          </button>
+          <button class="boss-card ${unlockedWeb ? 'soon' : 'locked'}" id="boss-webBoss" aria-label="Website Scam Boss" ${unlockedWeb ? '' : 'disabled'}>
+            <img src="assets/boss/webBoss.webp" alt="Website Scam Boss"/>
+            <div class="boss-name">Website Scam Boss</div>
+          </button>
         </div>
       </div>
       <footer class="card-footer">
-        <button id="btn-back" class="btn btn-ghost">Back</button>
-        <div class="pill">Progress: ${
-          prog.winAIboss ? "AI Boss defeated" : "0/1 unlocked"
-        }</div>
+        <button id="btn-back" class="btn btn-ghost">Back to Home</button>
+        <div class="pill">Progress: ${clearedCount}/4 cleared</div>
       </footer>
     `;
     app.appendChild(card);
 
-    qs("#btn-boss-ai", card).addEventListener("click", startBossAI);
+    // Wire bosses (only AI playable; others show Coming Soon or Locked)
+    qs("#boss-AIboss", card).addEventListener("click", () => startBoss("AIboss"));
+    const smsel = qs("#boss-smsboss", card);
+    const videl = qs("#boss-videoboss", card);
+    const webel = qs("#boss-webBoss", card);
+    if (smsel) smsel.addEventListener("click", () => {
+      if (!unlockedSMS) return openModal('Locked', '<p>Defeat AI Boss (10/10) to unlock SMS Boss.</p>');
+      openModal('Coming Soon', '<p>SMS Boss will be available later.</p>');
+    });
+    if (videl) videl.addEventListener("click", () => {
+      if (!unlockedVideo) return openModal('Locked', '<p>Defeat SMS Boss to unlock Video Boss.</p>');
+      openModal('Coming Soon', '<p>Video Boss will be available later.</p>');
+    });
+    if (webel) webel.addEventListener("click", () => {
+      if (!unlockedWeb) return openModal('Locked', '<p>Defeat Video Boss to unlock Website Boss.</p>');
+      openModal('Coming Soon', '<p>Website Boss will be available later.</p>');
+    });
     qs("#btn-back", card).addEventListener("click", () => {
-      state.screen = "menu";
+      state.screen = "landing";
       render();
     });
   }
@@ -768,7 +801,7 @@
     app.appendChild(sec);
 
     const goMenu = () => {
-      state.screen = "menu";
+      state.screen = "bossMenu";
       render();
     };
     sec.querySelector("#btn-enter")?.addEventListener("click", goMenu);
@@ -959,7 +992,6 @@
           } correct.</p>
         </div>
         <div class="stack">
-          <button id="btn-retry" class="btn btn-primary">Play again</button>
           <button id="btn-share" class="btn btn-outline">Share</button>
           <button id="btn-history" class="btn btn-outline">History</button>
         </div>
@@ -970,7 +1002,6 @@
     `;
     app.appendChild(card);
 
-    qs("#btn-retry", card).addEventListener("click", startGame);
     qs("#btn-menu", card).addEventListener("click", toMenu);
     qs("#btn-share", card).addEventListener("click", async () => {
       const text = `I scored ${s}/100 on Real or Fake? Can you beat me?`;
@@ -1002,7 +1033,7 @@
   window.addEventListener("keydown", (e) => {
     if (state.screen === "landing") {
       if (e.key === "Enter") {
-        state.screen = "menu";
+        state.screen = "bossMenu";
         render();
       }
       return;
