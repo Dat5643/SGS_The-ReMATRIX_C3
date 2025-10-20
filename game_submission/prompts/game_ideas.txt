@@ -1,0 +1,4 @@
+based on the project structure, code a quiz game, in which show the image and let the user choose real or fake to distinguish (raise awareness), for wrong answers there will be an explanation why the answer is the opposite
+maximum one time question is 10 questions, the user will get a score of ?/100 after completing
+do not use backend
+web idea: https://tracnghiem.chongluadao.vn/game
