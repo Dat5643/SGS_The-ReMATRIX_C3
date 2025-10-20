@@ -121,6 +121,34 @@
     return n;
   };
 
+  // Sound system
+  const sounds = {
+    correct: new Audio("assets/sound/correct.mp3"),
+    wrong: new Audio("assets/sound/wrong.mp3"),
+    click: new Audio("assets/sound/correct.mp3"), // Reuse correct sound for clicks, or add a separate click.mp3
+  };
+
+  // Preload all sounds
+  Object.values(sounds).forEach((audio) => {
+    audio.preload = "auto";
+    audio.volume = 0.5; // 50% volume
+  });
+
+  function playSound(name) {
+    if (name == "click") {
+      return;
+    }
+    try {
+      const audio = sounds[name];
+      if (audio) {
+        audio.currentTime = 0; // Reset to start
+        audio.play().catch((err) => console.warn("Audio play failed:", err));
+      }
+    } catch (err) {
+      console.warn("Sound error:", err);
+    }
+  }
+
   // Minimal reusable modal (flat, accessible)
   let activeModal = null;
   let lastFocus = null;
@@ -292,7 +320,13 @@
   function loadBossProgress() {
     try {
       const raw = localStorage.getItem(LS_KEY_BOSS);
-      if (!raw) return { AIboss: false, smsboss: false, videoboss: false, webBoss: false };
+      if (!raw)
+        return {
+          AIboss: false,
+          smsboss: false,
+          videoboss: false,
+          webBoss: false,
+        };
       const obj = JSON.parse(raw) || {};
       // migrate legacy shape { winAIboss: boolean }
       const migrated = {
@@ -303,7 +337,12 @@
       };
       return migrated;
     } catch (_) {
-      return { AIboss: false, smsboss: false, videoboss: false, webBoss: false };
+      return {
+        AIboss: false,
+        smsboss: false,
+        videoboss: false,
+        webBoss: false,
+      };
     }
   }
   function saveBossProgress(p) {
@@ -479,19 +518,24 @@
 
   function buildBossQuestionsForTypes(allowedTypes, data) {
     // Filter pairs where both items' type are in allowedTypes
-    const pairs = data.pairs.filter((p) =>
-      allowedTypes.includes(p.left.type) && allowedTypes.includes(p.right.type)
+    const pairs = data.pairs.filter(
+      (p) =>
+        allowedTypes.includes(p.left.type) &&
+        allowedTypes.includes(p.right.type)
     );
     // Singles are items not in any pair; filter by item.type
-    const singles = data.items.filter((s) => allowedTypes.includes(s.item.type));
+    const singles = data.items.filter((s) =>
+      allowedTypes.includes(s.item.type)
+    );
     const all = shuffle([...pairs, ...singles]);
     // Dedup and limit to MAX_QUESTIONS
     const seen = new Set();
     const unique = [];
     for (const q of all) {
-      const key = q.type === 'single'
-        ? `i:${q.item.id}`
-        : `p:${[q.left.id, q.right.id].sort((a,b)=>a-b).join('-')}`;
+      const key =
+        q.type === "single"
+          ? `i:${q.item.id}`
+          : `p:${[q.left.id, q.right.id].sort((a, b) => a - b).join("-")}`;
       if (seen.has(key)) continue;
       seen.add(key);
       unique.push(q);
@@ -503,7 +547,7 @@
   // Start AI Boss using type-based filter
   async function startBossAI() {
     const data = await loadData();
-    const questions = buildBossQuestionsForTypes(['image'], data);
+    const questions = buildBossQuestionsForTypes(["image"], data);
     state.questions = questions.slice(0, MAX_QUESTIONS);
     state.index = 0;
     state.score = 0;
@@ -569,7 +613,15 @@
     const item = q.item;
     const correctLabel = item.is_fake ? "fake" : "real";
     const correct = correctLabel === guess;
-    try { if (window.fx) { correct ? window.fx.correct() : window.fx.incorrect(); } } catch (_) {}
+
+    // Play sound based on answer
+    playSound(correct ? "correct" : "wrong");
+
+    try {
+      if (window.fx) {
+        correct ? window.fx.correct() : window.fx.incorrect();
+      }
+    } catch (_) {}
     if (correct) state.score += Math.floor(100 / MAX_QUESTIONS);
     state.answers.push({ kind: "single", id: item.id, guess, correct });
 
@@ -595,7 +647,15 @@
   function onGuessPair(choiceIndex) {
     const q = state.questions[state.index];
     const correct = choiceIndex === q.correctIndex;
-    try { if (window.fx) { correct ? window.fx.correct() : window.fx.incorrect(); } } catch (_) {}
+
+    // Play sound based on answer
+    playSound(correct ? "correct" : "wrong");
+
+    try {
+      if (window.fx) {
+        correct ? window.fx.correct() : window.fx.incorrect();
+      }
+    } catch (_) {}
     if (correct) state.score += Math.floor(100 / MAX_QUESTIONS);
     state.answers.push({ kind: "pair", id: q.id, choiceIndex, correct });
 
@@ -676,7 +736,7 @@
     const card = el("section", "card");
     card.innerHTML = `
       <header class="card-header">
-        <div class="brand"><span class="dot"></span> Real or Fake?</div>
+        <div class="brand"><span class="dot"></span> CyberQuest</div>
       </header>
       <div class="card-body">
         <div class="hero">
@@ -695,11 +755,13 @@
     app.appendChild(card);
 
     qs("#btn-boss", card).addEventListener("click", () => {
+      playSound("click");
       state.screen = "bossMenu";
       render();
     });
     // Hide other modes/options for the boss-first flow
     qs("#btn-landing", card).addEventListener("click", () => {
+      playSound("click");
       state.screen = "landing";
       render();
     });
@@ -714,7 +776,11 @@
     const unlockedSMS = !!prog.AIboss; // AI cleared unlocks SMS
     const unlockedVideo = !!prog.smsboss; // SMS cleared unlocks Video
     const unlockedWeb = !!prog.videoboss; // Video cleared unlocks Web
-    const clearedCount = (prog.AIboss?1:0) + (prog.smsboss?1:0) + (prog.videoboss?1:0) + (prog.webBoss?1:0);
+    const clearedCount =
+      (prog.AIboss ? 1 : 0) +
+      (prog.smsboss ? 1 : 0) +
+      (prog.videoboss ? 1 : 0) +
+      (prog.webBoss ? 1 : 0);
 
     card.innerHTML = `
       <header class="card-header">
@@ -724,22 +790,36 @@
       <div class="card-body" style="display:grid; gap:16px;">
         <div class="hero">
           <h1>Choose Your Boss</h1>
-          <p>Other bosses are coming soon. Clear one to unlock the next.</p>
+          <p>Clear one to unlock the next.</p>
         </div>
         <div class="boss-grid">
-          <button class="boss-card ${unlockedAI ? '' : 'locked'}" id="boss-AIboss" aria-label="AI Scam Boss">
+          <button class="boss-card ${
+            unlockedAI ? "" : "locked"
+          }" id="boss-AIboss" aria-label="AI Scam Boss">
             <img src="assets/boss/AIboss.webp" alt="AI Scam Boss"/>
             <div class="boss-name">AI Scam Boss</div>
           </button>
-          <button class="boss-card ${unlockedSMS ? 'soon' : 'locked'}" id="boss-smsboss" aria-label="SMS/Email Scam Boss" ${unlockedSMS ? '' : 'disabled'}>
+          <button class="boss-card ${
+            unlockedSMS ? "soon" : "locked"
+          }" id="boss-smsboss" aria-label="SMS/Email Scam Boss" ${
+      unlockedSMS ? "" : "disabled"
+    }>
             <img src="assets/boss/smsboss.webp" alt="SMS Scam Boss"/>
-            <div class="boss-name">SMS Scam Boss</div>
+            <div class="boss-name">SMS/Email Scam Boss</div>
           </button>
-          <button class="boss-card ${unlockedVideo ? 'soon' : 'locked'}" id="boss-videoboss" aria-label="Video Scam Boss" ${unlockedVideo ? '' : 'disabled'}>
+          <button class="boss-card ${
+            unlockedVideo ? "soon" : "locked"
+          }" id="boss-videoboss" aria-label="Video Scam Boss" ${
+      unlockedVideo ? "" : "disabled"
+    }>
             <img src="assets/boss/videoboss.webp" alt="Video Scam Boss"/>
             <div class="boss-name">Video Scam Boss</div>
           </button>
-          <button class="boss-card ${unlockedWeb ? 'soon' : 'locked'}" id="boss-webBoss" aria-label="Website Scam Boss" ${unlockedWeb ? '' : 'disabled'}>
+          <button class="boss-card ${
+            unlockedWeb ? "soon" : "locked"
+          }" id="boss-webBoss" aria-label="Website Scam Boss" ${
+      unlockedWeb ? "" : "disabled"
+    }>
             <img src="assets/boss/webBoss.webp" alt="Website Scam Boss"/>
             <div class="boss-name">Website Scam Boss</div>
           </button>
@@ -753,23 +833,48 @@
     app.appendChild(card);
 
     // Wire bosses (only AI playable; others show Coming Soon or Locked)
-    qs("#boss-AIboss", card).addEventListener("click", () => startBoss("AIboss"));
+    qs("#boss-AIboss", card).addEventListener("click", () => {
+      playSound("click");
+      startBoss("AIboss");
+    });
     const smsel = qs("#boss-smsboss", card);
     const videl = qs("#boss-videoboss", card);
     const webel = qs("#boss-webBoss", card);
-    if (smsel) smsel.addEventListener("click", () => {
-      if (!unlockedSMS) return openModal('Locked', '<p>Defeat AI Boss (10/10) to unlock SMS Boss.</p>');
-      openModal('Coming Soon', '<p>SMS Boss will be available later.</p>');
-    });
-    if (videl) videl.addEventListener("click", () => {
-      if (!unlockedVideo) return openModal('Locked', '<p>Defeat SMS Boss to unlock Video Boss.</p>');
-      openModal('Coming Soon', '<p>Video Boss will be available later.</p>');
-    });
-    if (webel) webel.addEventListener("click", () => {
-      if (!unlockedWeb) return openModal('Locked', '<p>Defeat Video Boss to unlock Website Boss.</p>');
-      openModal('Coming Soon', '<p>Website Boss will be available later.</p>');
-    });
+    if (smsel)
+      smsel.addEventListener("click", () => {
+        playSound("click");
+        if (!unlockedSMS)
+          return openModal(
+            "Locked",
+            "<p>Defeat AI Boss (10/10) to unlock SMS Boss.</p>"
+          );
+        openModal("Coming Soon", "<p>SMS Boss will be available later.</p>");
+      });
+    if (videl)
+      videl.addEventListener("click", () => {
+        playSound("click");
+        if (!unlockedVideo)
+          return openModal(
+            "Locked",
+            "<p>Defeat SMS Boss to unlock Video Boss.</p>"
+          );
+        openModal("Coming Soon", "<p>Video Boss will be available later.</p>");
+      });
+    if (webel)
+      webel.addEventListener("click", () => {
+        playSound("click");
+        if (!unlockedWeb)
+          return openModal(
+            "Locked",
+            "<p>Defeat Video Boss to unlock Website Boss.</p>"
+          );
+        openModal(
+          "Coming Soon",
+          "<p>Website Boss will be available later.</p>"
+        );
+      });
     qs("#btn-back", card).addEventListener("click", () => {
+      playSound("click");
       state.screen = "landing";
       render();
     });
@@ -781,7 +886,7 @@
     sec.innerHTML = `
       <div class="landing-bg" aria-hidden="true"></div>
       <div class="landing-inner">
-        <div class="brand brand-lg"><span class="dot"></span> Real or Fake?</div>
+        <div class="brand brand-lg"><span class="dot"></span> CyberQuest</div>
         <h1 class="landing-title">Spot Deepfakes. Train Your Eye.</h1>
         <p class="landing-sub">A fast, privacy‑friendly quiz to practice detecting AI‑generated and manipulated media.</p>
         <div class="landing-actions">
@@ -801,15 +906,17 @@
     app.appendChild(sec);
 
     const goMenu = () => {
+      playSound("click");
       state.screen = "bossMenu";
       render();
     };
     sec.querySelector("#btn-enter")?.addEventListener("click", goMenu);
     sec.querySelector("#btn-how")?.addEventListener("click", () => {
+      playSound("click");
       openModal(
         "How It Works",
         `
-        <p>You will see either a single image (decide Real or Fake) or a pair of images (choose which one is Real or Fake depending on the prompt).</p>
+        <p>You will see either a single image (decide CyberQuest?) or a pair of images (choose which one is CyberQuest? depending on the prompt).</p>
         <p>Use keyboard shortcuts to go faster: <span class="kbd">R</span>/<span class="kbd">F</span> for Real/Fake, and <span class="kbd">1</span>/<span class="kbd">2</span> for left/right.</p>
         <p>Data is loaded locally from <code>assets/data/</code>. Update the CSVs to customize the game.</p>
       `,
@@ -820,6 +927,7 @@
       );
     });
     sec.querySelector("#btn-credits-landing")?.addEventListener("click", () => {
+      playSound("click");
       openModal(
         "Credits",
         `
@@ -839,7 +947,7 @@
     const card = el("section", "card");
     const headerHTML = `
       <header class="card-header">
-        <div class="brand"><span class="dot"></span> Real or Fake?</div>
+        <div class="brand"><span class="dot"></span> CyberQuest</div>
         <div class="pill">Q ${state.index + 1} / ${total}</div>
       </header>
     `;
@@ -970,8 +1078,14 @@
         });
       }
     }
-    qs("#btn-next", card).addEventListener("click", onNext);
-    qs("#btn-exit", card).addEventListener("click", toMenu);
+    qs("#btn-next", card).addEventListener("click", () => {
+      playSound("click");
+      onNext();
+    });
+    qs("#btn-exit", card).addEventListener("click", () => {
+      playSound("click");
+      toMenu();
+    });
   }
 
   function renderResults() {
@@ -1002,13 +1116,17 @@
     `;
     app.appendChild(card);
 
-    qs("#btn-menu", card).addEventListener("click", toMenu);
+    qs("#btn-menu", card).addEventListener("click", () => {
+      playSound("click");
+      toMenu();
+    });
     qs("#btn-share", card).addEventListener("click", async () => {
-      const text = `I scored ${s}/100 on Real or Fake? Can you beat me?`;
+      playSound("click");
+      const text = `I scored ${s}/100 on CyberQuest Can you beat me?`;
       try {
         if (navigator.share) {
           await navigator.share({
-            title: "Real or Fake — Image Quiz",
+            title: "CyberQuest? — Image Quiz",
             text,
             url: location.href,
           });
@@ -1018,7 +1136,10 @@
         }
       } catch (_) {}
     });
-    qs("#btn-history", card).addEventListener("click", showHistory);
+    qs("#btn-history", card).addEventListener("click", () => {
+      playSound("click");
+      showHistory();
+    });
   }
 
   function render() {
